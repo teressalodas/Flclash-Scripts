@@ -1,0 +1,8 @@
+# 统一使用 LF，避免在 Windows 上 checkout 时被改写成 CRLF，
+# 导致脚本内容与 GitHub 上看到的不一致。
+* text=auto eol=lf
+
+# 二进制/非文本资源不做转换
+*.png binary
+*.jpg binary
+*.ico binary
