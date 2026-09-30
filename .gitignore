@@ -1,0 +1,11 @@
+# 依赖（若日后引入）
+node_modules/
+
+# 分析工具的输出产物，可随时用 `node tools/analyze.mjs` 重新生成
+tools/analysis.json
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
