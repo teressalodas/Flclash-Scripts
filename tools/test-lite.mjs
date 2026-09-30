@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import vm from 'node:vm';
 
 import { fileURLToPath } from 'node:url';
@@ -76,7 +76,10 @@ console.log('=========== scripts-lite: default (手动档) ===========');
   t('逻辑规则保留', out.rules.some(r => r.startsWith('AND,')));
   t('MATCH 必须是最后一条', out.rules[out.rules.length - 1] === 'MATCH,节点选择', JSON.stringify(out.rules.slice(-3)));
   t('AND 规则排在 MATCH 之前（未被吞掉）', out.rules.indexOf(out.rules.find(r => r.startsWith('AND,'))) < out.rules.length - 1);
-  t('未删除节点（只改名）', out.proxies.length === baseConfig().proxies.length);
+  // 被过滤的节点不再写回 config.proxies（旧版本会保留它们，属遗留行为）
+  t('被黑名单过滤的节点不写回 config.proxies',
+    !out.proxies.some(p => p.name.includes('剩余流量')),
+    JSON.stringify(out.proxies.map(p => p.name)));
   t('无悬空策略组引用', !JSON.stringify(out['proxy-groups']).includes('"X"'));
 }
 
@@ -109,6 +112,45 @@ console.log('\n=========== scripts-lite: 空规则订阅 ===========');
   const out = main({ proxies: [{ name: '🇭🇰 HK 01', type: 'ss' }], rules: [] });
   t('自动补 MATCH 兜底', out.rules.includes('MATCH,节点选择'));
   t('无 rule-providers 时不报错', out['rule-providers'] === undefined);
+}
+
+console.log('\n=========== scripts-lite: 悬空 dialer-proxy 清理 + 改名同步 ===========');
+{
+  const main = loadMain({});
+  const out = main({
+    proxies: [
+      { name: 'HK 1', type: 'ss' },
+      { name: '剩余流量 1GB', type: 'ss' },
+      { name: 'C', type: 'ss', 'dialer-proxy': '剩余流量 1GB' },
+      { name: 'B', type: 'ss', 'dialer-proxy': 'GHOST' },
+      { name: 'P', type: 'ss', 'dialer-proxy': 'Q' },
+      { name: 'Q', type: 'ss', 'dialer-proxy': '也不存在' },
+      { name: 'R', type: 'ss', 'dialer-proxy': 'P' },
+    ],
+    rules: [],
+  });
+  const names = out.proxies.map(p => p.name);
+  console.log('  保留:', JSON.stringify(names));
+  t('C(指向被过滤节点)被剔除', !names.includes('C'));
+  t('B(指向不存在的名字)被剔除', !names.includes('B'));
+  t('级联：Q/P/R 全被剔除', !['Q', 'P', 'R'].some(n => names.includes(n)));
+  t('不相关节点保留', names.includes('HK 1'));
+  t('结果中不含任何悬空引用',
+    out.proxies.filter(p => p['dialer-proxy'] && !names.includes(p['dialer-proxy'])).length === 0);
+
+  const out2 = loadMain({})({
+    proxies: [
+      { name: 'HK 1', type: 'ss' },
+      { name: 'HK 1', type: 'ss' },
+      { name: 'D', type: 'ss', 'dialer-proxy': 'HK 1' },
+    ],
+    rules: [],
+  });
+  const n2 = out2.proxies.map(p => p.name);
+  const d = out2.proxies.find(p => p.name === 'D');
+  console.log('  保留:', JSON.stringify(n2), ' D.dialer-proxy =', JSON.stringify(d && d['dialer-proxy']));
+  t('重名节点被改名', n2.includes('HK 1 #1'));
+  t('指向被改名节点的 dialer-proxy 已同步', d && d['dialer-proxy'] === 'HK 1 #1', d && d['dialer-proxy']);
 }
 
 console.log(`\n================ ${pass} passed, ${fail} failed ================`);

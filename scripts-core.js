@@ -61,14 +61,16 @@ function main(config) {
 
   // ============================ 1. 节点清洗 ============================
   const allProxies = config.proxies || [];
+  // 记录被过滤掉的内联节点名，供下面清理悬空的 dialer-proxy 引用
+  const removedNames = new Set();
 
   const proxies = allProxies.filter(p => {
     if (!p?.name) return false;
-    if (CONFIG.filterNames && BLACK_RE.test(p.name)) return false;
+    if (CONFIG.filterNames && BLACK_RE.test(p.name)) { removedNames.add(p.name); return false; }
     if (CONFIG.filterRatio) {
       const m = p.name.match(RATIO_RE);
       const ratio = m && parseFloat(m[1] ?? m[2]);
-      if (ratio && ratio > CONFIG.maxRatio) return false;
+      if (ratio && ratio > CONFIG.maxRatio) { removedNames.add(p.name); return false; }
     }
     return true;
   });
@@ -76,14 +78,50 @@ function main(config) {
   // 一个节点都不剩就直接抛错，避免生成空配置让内核崩掉（scripts15 起引入的防护）
   if (!proxies.length) throw new Error("无有效代理节点：请检查订阅或放宽过滤条件");
 
-  // ============================ 2. 名称归一化 ============================
+  // ============================ 2. 清理悬空 dialer-proxy ============================
+  // dialer-proxy 指向一个不存在的节点时，内核会报错或该节点直接连不上。
+  // 判据：引用名必须真实存在，且不能是上面被过滤掉的节点。
+  // 每轮把被剔除的名字并入 removedNames，实现级联清理（P→Q→GHOST 会整条清掉）。
+  let alive = proxies;
+  {
+    let changed = true;
+    while (changed) {
+      const names = new Set(alive.map(p => p.name));
+      const next = alive.filter(p => {
+        const dp = p["dialer-proxy"];
+        return !dp || (names.has(dp) && !removedNames.has(dp));
+      });
+      changed = next.length !== alive.length;
+      if (changed) {
+        const keep = new Set(next);
+        alive.forEach(p => { if (!keep.has(p)) removedNames.add(p.name); });
+      }
+      alive = next;
+    }
+  }
+
+  // ============================ 3. 名称归一化 ============================
   // 同名节点不能丢弃（scripts18 之前的教训），也不能让 UI 里出现两个同名项。
   // 采用 scripts19 的改名去重方案：#N 后缀是幂等的（重复运行不会累加）。
+  // 改名后必须同步别的节点指向它的 dialer-proxy，否则引用会指向旧名字。
   const seen = new Map();
-  for (const p of proxies) {
-    const n = seen.get(p.name) || 0;
-    seen.set(p.name, n + 1);
-    if (n > 0) p.name = `${p.name} #${n}`;
+  const renameMap = new Map();
+  for (const p of alive) {
+    const base = p.name;
+    if (seen.has(base)) {
+      const n = seen.get(base) + 1;
+      seen.set(base, n);
+      p.name = `${base} #${n}`;
+      if (!renameMap.has(base)) renameMap.set(base, p.name);
+    } else {
+      seen.set(base, 0);
+    }
+  }
+  if (renameMap.size) {
+    alive.forEach(p => {
+      const dp = p["dialer-proxy"];
+      if (dp && renameMap.has(dp)) p["dialer-proxy"] = renameMap.get(dp);
+    });
   }
 
   const norm = name => {
@@ -92,7 +130,7 @@ function main(config) {
     return s;
   };
 
-  // ============================ 3. 地区探测 ============================
+  // ============================ 4. 地区探测 ============================
   const matched = new Set();
   const regions = REGIONS.map(([name, pattern, icon]) => {
     const re = new RegExp(
@@ -103,12 +141,12 @@ function main(config) {
       }).join("|"),
       "i"
     );
-    const hit = proxies.filter(p => !matched.has(p.name) && re.test(norm(p.name))).map(p => p.name);
+    const hit = alive.filter(p => !matched.has(p.name) && re.test(norm(p.name))).map(p => p.name);
     hit.forEach(n => matched.add(n));
     return hit.length ? { name, icon, proxies: hit } : null;
   }).filter(Boolean);
 
-  const otherProxies = proxies.map(p => p.name).filter(n => !matched.has(n));
+  const otherProxies = alive.map(p => p.name).filter(n => !matched.has(n));
   const hasOther = otherProxies.length > 0;
   const regionNames = regions.map(r => r.name);
 
@@ -156,7 +194,7 @@ function main(config) {
   const validTargets = new Set([
     "DIRECT", "REJECT", "REJECT-DROP", "PASS",
     ...config["proxy-groups"].map(g => g.name),
-    ...proxies.map(p => p.name),
+    ...alive.map(p => p.name),
   ]);
 
   // 中文策略组名按语义映射，而不是一律打成「节点选择」（scripts14 的改进）
@@ -210,7 +248,12 @@ function main(config) {
     "MATCH,节点选择",
   ];
 
-  // ============================ 6. 性能开关 ============================
+  // ============================ 6. 收尾 ============================
+  // 把清理后的节点写回配置：被黑名单/倍率过滤掉的节点、以及因引用悬空被连带剔除的节点
+  // 都从 config.proxies 里移除，这样配置里不会残留任何"存在但不可用"的节点，
+  // 也不会出现指向已移除节点的 dialer-proxy。
+  config.proxies = alive;
+
   config["unified-delay"] = true;
   config["tcp-concurrent"] = true;
 

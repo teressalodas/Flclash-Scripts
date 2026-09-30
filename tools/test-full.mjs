@@ -1,11 +1,11 @@
-﻿/**
- * scripts-merged.js 的行为断言测试
- * 用法: node test-merged.mjs [脚本路径]
+/**
+ * scripts-full.js 的行为断言测试
+ * 用法: node test-full.mjs [脚本路径]
  */
 import fs from 'node:fs';
 import vm from 'node:vm';
-
 import { fileURLToPath } from 'node:url';
+
 const SRC = process.argv[2] || fileURLToPath(new URL('../scripts-full.js', import.meta.url));
 const code = fs.readFileSync(SRC, 'utf8');
 function load(o = {}) {
@@ -88,35 +88,64 @@ console.log('\n══ 倍率过滤：只挡自动分流，不挡手动选择 ═
   t('filterHighRate=false 时高倍率节点进地区组', groupsOf(off)['香港节点'].proxies.includes('🇭🇰 香港 5x 高倍率'));
 }
 
-console.log('\n══ 已移除的功能确实不再出现 ══');
+console.log('\n══ DNS / sniffer 防泄露设置（不得再被移除）══');
+{
+  // 这一组断言是回归护栏：曾经因为"不接管 DNS"而把这段整块删掉，导致 DNS 泄露。
+  // 任何一次删除 respect-rules / fake-ip-filter / nameserver-policy 都会在这里失败。
+  const out = load({})(base({ proxies: [P('HK 1')] }));
+  t('dns.respect-rules 必须为 true（DNS 查询跟随规则表）', out.dns['respect-rules'] === true, String(out.dns['respect-rules']));
+  t('dns.enhanced-mode 为 fake-ip', out.dns['enhanced-mode'] === 'fake-ip');
+  t('dns.fake-ip-filter 含 geosite:cn', (out.dns['fake-ip-filter'] || []).includes('geosite:cn'));
+  t('dns.fake-ip-filter 含 geosite:private', (out.dns['fake-ip-filter'] || []).includes('geosite:private'));
+  t('nameserver 为 DoH（代理侧解析）', (out.dns.nameserver || []).every(u => u.startsWith('https://')));
+  t('direct-nameserver 为境内明文', JSON.stringify(out.dns['direct-nameserver']) === JSON.stringify(['223.5.5.5', '119.29.29.29']));
+  t('proxy-server-nameserver 为境内明文', JSON.stringify(out.dns['proxy-server-nameserver']) === JSON.stringify(['223.5.5.5', '119.29.29.29']));
+  t('nameserver-policy 为 geosite:cn 指定境内 DoH',
+    JSON.stringify(out.dns['nameserver-policy']?.['geosite:cn']) === JSON.stringify(['https://doh.pub/dns-query', 'https://dns.alidns.com/dns-query']));
+  t('sniffer.enable 为 true', out.sniffer.enable === true);
+  t('sniffer.parse-pure-ip 为 true', out.sniffer['parse-pure-ip'] === true);
+  t('sniffer.override-destination 为 true', out.sniffer['override-destination'] === true);
+  t('dns 合并而非替换：用户自定义字段保留',
+    (() => {
+      const o = load({})(base({ proxies: [P('HK 1')], dns: { fallback: ['https://1.1.1.1/dns-query'], 'fallback-filter': { geoip: true } } }));
+      return JSON.stringify(o.dns.fallback) === JSON.stringify(['https://1.1.1.1/dns-query']) && !!o.dns['fallback-filter'];
+    })());
+}
+
+console.log('\n══ 不接管的键确实未被触碰 ══');
 {
   const cfg = {
     proxies: [P('HK 1')],
-    dns: { enable: false, fallback: ['https://1.1.1.1/dns-query'], 'fallback-filter': { geoip: true } },
     hosts: { 'my.custom.host': '1.2.3.4' },
     ntp: { enable: false, server: 'my.ntp' },
-    sniffer: { enable: false, sniff: { QUIC: { ports: [443] } } },
     'geodata-loader': 'standard',
     tun: { enable: true, mtu: 9000 },
   };
   const out = load({})(JSON.parse(JSON.stringify(cfg)));
-  t('dns 完全不被触碰', JSON.stringify(out.dns) === JSON.stringify(cfg.dns));
   t('hosts 完全不被触碰', JSON.stringify(out.hosts) === JSON.stringify(cfg.hosts));
   t('ntp 完全不被触碰', JSON.stringify(out.ntp) === JSON.stringify(cfg.ntp));
-  t('sniffer 完全不被触碰', JSON.stringify(out.sniffer) === JSON.stringify(cfg.sniffer));
   t('geodata-loader 完全不被触碰', out['geodata-loader'] === 'standard');
   t('tun 完全不被触碰（mtu 保持 9000）', out.tun.mtu === 9000 && out.tun.gso === undefined);
-  t('OPTIONS 里不再有 manageXxx / hostsGoogleCn / hostsBlockCdn / strictNameFilter',
-    !/manageDns|manageHosts|manageNtp|manageSniffer|manageGeodataLoader|hostsGoogleCn|hostsBlockCdn|strictNameFilter|subRulesPosition|extraGroups/.test(code));
+  t('OPTIONS 里不再有 manageXxx / hostsGoogleCn / hostsBlockCdn / strictNameFilter / extraGroups',
+    !/manageDns|manageHosts|manageNtp|manageSniffer|manageGeodataLoader|hostsGoogleCn|hostsBlockCdn|strictNameFilter|extraGroups/.test(code));
 }
 
-console.log('\n══ subRulesPosition 固定为 after-cn ══');
+console.log('\n══ subRulesPosition（默认 before-cn）══');
 {
-  const out = load({})(base({ proxies: [P('HK 1')], rules: ['DOMAIN-SUFFIX,myown.com,DIRECT'] }));
-  const iMy = out.rules.findIndex(r => r.includes('myown.com'));
-  const iCn = out.rules.findIndex(r => r.startsWith('RULE-SET,cn-domain'));
-  t('CN 分流排在订阅规则之前', iCn < iMy, `cn=${iCn} my=${iMy}`);
-  t('MATCH 是最后一条', out.rules.at(-1) === 'MATCH,节点选择');
+  const cfg = () => base({ proxies: [P('HK 1')], rules: ['DOMAIN-SUFFIX,myown.com,DIRECT'] });
+  const def = load({})(cfg());
+  const iMy = def.rules.findIndex(r => r.includes('myown.com'));
+  const iCn = def.rules.findIndex(r => r.startsWith('RULE-SET,cn-domain'));
+  console.log(`   默认(before-cn): 订阅@${iMy + 1}  cn-domain@${iCn + 1}`);
+  t('默认 before-cn：订阅规则排在 CN 分流之前', iMy < iCn, `my=${iMy} cn=${iCn}`);
+  t('MATCH 是最后一条', def.rules.at(-1) === 'MATCH,节点选择');
+
+  const after = load({ subRulesPosition: 'after-cn' })(cfg());
+  const iMy2 = after.rules.findIndex(r => r.includes('myown.com'));
+  const iCn2 = after.rules.findIndex(r => r.startsWith('RULE-SET,cn-domain'));
+  console.log(`   after-cn       : 订阅@${iMy2 + 1}  cn-domain@${iCn2 + 1}`);
+  t('after-cn：CN 分流排在订阅规则之前', iCn2 < iMy2, `my=${iMy2} cn=${iCn2}`);
+  t('两种模式下 MATCH 都在最后', after.rules.at(-1) === 'MATCH,节点选择');
 }
 
 console.log('\n══ 容差固定 50 ══');

@@ -1,12 +1,12 @@
-# tools/ —— 维护者说明
+﻿# tools/ —— 维护者说明
 
 这里的脚本用于**验证**根目录的三个覆写脚本，不参与 FlClash 运行。
 提交前请确保三个测试全绿：
 
 ```powershell
-node tools/test-full.mjs   # 期望: 103 passed, 0 failed
-node tools/test-core.mjs   # 期望:  41 passed, 0 failed
-node tools/test-lite.mjs   # 期望:  30 passed, 0 failed
+node tools/test-full.mjs   # 期望: 115 passed, 0 failed
+node tools/test-core.mjs   # 期望:  51 passed, 0 failed
+node tools/test-lite.mjs   # 期望:  37 passed, 0 failed
 ```
 
 要求 Node.js 18+，**无第三方依赖**。
@@ -54,3 +54,4 @@ node tools/test-lite.mjs   # 期望:  30 passed, 0 failed
 | `rename-check.mjs` | 重名节点改名方案的幂等性验证 |
 
 > 这些脚本里的路径常量指向 `legacy/`，移动文件后需同步修改。
+

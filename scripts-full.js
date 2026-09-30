@@ -5,8 +5,14 @@ function main(config) {
     remoteDirect: true,
     blockQuic: true,
 
+    subRulesPosition: 'before-cn',
+
     filterHighRate: true,
     maxRate: 1.5,
+
+    lanShareDns: false,
+
+    dnsIpv6: 'auto',
 
     aiBlockedRegions: ['香港节点', '澳门节点'],
   };
@@ -216,6 +222,55 @@ function main(config) {
     },
   ];
 
+  config['dns'] = {
+    ...(config['dns'] || {}),
+    enable: true,
+    listen: OPTIONS.lanShareDns ? '0.0.0.0:1053' : '127.0.0.1:1053',
+    ipv6: OPTIONS.dnsIpv6 === 'auto' ? config.ipv6 === true : !!OPTIONS.dnsIpv6,
+    'use-hosts': true,
+    'use-system-hosts': true,
+    'respect-rules': true,
+    'prefer-h3': false,
+    'cache-algorithm': 'arc',
+    'enhanced-mode': 'fake-ip',
+    'fake-ip-range': '198.18.0.1/16',
+    'fake-ip-filter': [
+      '*.lan',
+      '*.localdomain',
+      '*.localhost',
+      '*.local',
+      'localhost.ptlogin2.qq.com',
+      '+.msftconnecttest.com',
+      '+.msftncsi.com',
+      'time.*.com',
+      'time.*.gov',
+      'ntp.*.com',
+      '+.pool.ntp.org',
+      'geosite:private',
+      'geosite:cn',
+      'stun.*',
+      '+.stun.*',
+      'lens.l.google.com',
+    ],
+    'default-nameserver': ['223.5.5.5', '119.29.29.29'],
+    'direct-nameserver': ['223.5.5.5', '119.29.29.29'],
+    'proxy-server-nameserver': ['223.5.5.5', '119.29.29.29'],
+    nameserver: ['https://dns.google/dns-query', 'https://cloudflare-dns.com/dns-query'],
+    'nameserver-policy': {
+      'geosite:private': ['system'],
+      'geosite:cn': ['https://doh.pub/dns-query', 'https://dns.alidns.com/dns-query'],
+    },
+  };
+
+  config['sniffer'] = {
+    enable: true,
+    'force-dns-mapping': true,
+    'parse-pure-ip': true,
+    'override-destination': true,
+    'skip-domain': ['+.mijia.io', '+.push.apple.com'],
+    sniff: { TLS: { ports: [443, 8443] }, HTTP: { ports: [80, '8080-8880'] } },
+  };
+
   const MRS_BASE = 'https://fastly.jsdelivr.net/gh/MetaCubeX/meta-rules-dat@meta/geo/';
   const mrs = (behavior, url, path) => ({ type: 'http', format: 'mrs', behavior, interval: 86400, url, path });
   const ownProviders = {
@@ -331,6 +386,8 @@ function main(config) {
     );
   }
 
+  const subFirst = OPTIONS.subRulesPosition !== 'after-cn';
+
   config.rules = [
     ...prefixRules,
     'RULE-SET,adblock,REJECT',
@@ -343,9 +400,10 @@ function main(config) {
     'RULE-SET,google-fcm,节点选择',
     'RULE-SET,microsoft,节点选择',
     'RULE-SET,google,节点选择',
+    ...(subFirst ? mappedRules : []),
     'RULE-SET,cn-domain,DIRECT',
     'RULE-SET,cn-ip,DIRECT,no-resolve',
-    ...mappedRules,
+    ...(subFirst ? [] : mappedRules),
     'MATCH,节点选择',
   ];
 

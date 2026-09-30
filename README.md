@@ -1,4 +1,4 @@
-# Flclash-scripts
+﻿# Flclash-scripts
 
 脚本专为 **FlClash** 制作，或可用于 **Clash Verge Rev**（未测试，不保证可用性与稳定性）。
 
@@ -27,7 +27,7 @@
 | **QUIC 拦截** | ✅ | ✅ | ❌ |
 | **保留订阅自带规则** | ✅ | ✅ | ✅ |
 | **接管 DNS/hosts/sniffer** | ❌ 一律不碰 | ❌ | ❌ |
-| **代码行数** | ~354 行 | ~168 行 | ~107 行 |
+| **代码行数** | ~412 行 | ~168 行 | ~107 行 |
 
 **选哪个？**
 - 订阅是**机场动态订阅**（用 `proxy-providers`）→ 选 `scripts-full.js`
@@ -174,9 +174,9 @@ Flclash-scripts/
 3. **改完跑测试。** 三个脚本都有对应测试，必须全绿：
 
    ```powershell
-   node tools/test-full.mjs    # 期望: 103 passed, 0 failed
-   node tools/test-core.mjs    # 期望:  41 passed, 0 failed
-   node tools/test-lite.mjs    # 期望:  30 passed, 0 failed
+   node tools/test-full.mjs    # 期望: 115 passed, 0 failed
+   node tools/test-core.mjs    # 期望:  51 passed, 0 failed
+   node tools/test-lite.mjs    # 期望:  37 passed, 0 failed
    ```
 
 4. **README 与代码同一次提交更新。**
@@ -184,3 +184,4 @@ Flclash-scripts/
 ---
 
 **持续优化中，欢迎反馈使用体验！**
+

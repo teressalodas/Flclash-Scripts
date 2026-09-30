@@ -37,7 +37,13 @@ function main(config) {
 
   // ============================ 1. 节点清洗 ============================
   const allProxies = config.proxies || [];
-  const proxies = allProxies.filter(p => p?.name && !BLACK_RE.test(p.name));
+  // 记录被过滤掉的内联节点名，供下面清理悬空的 dialer-proxy 引用
+  const removedNames = new Set();
+  const proxies = allProxies.filter(p => {
+    if (!p?.name) return false;
+    if (BLACK_RE.test(p.name)) { removedNames.add(p.name); return false; }
+    return true;
+  });
 
   // scripts17 在无节点时静默返回、scripts19 在"过滤后为空但原始非空"时继续使用空列表，
   // 两者都会生成没有节点的配置。这里统一改为显式报错。
@@ -46,22 +52,58 @@ function main(config) {
   }
   if (!proxies.length) return config;
 
-  // 同名节点改名去重（scripts19 的方案，实测连续多次运行幂等，不会累加后缀）
-  const seen = new Map();
-  for (const p of proxies) {
-    const n = seen.get(p.name) || 0;
-    seen.set(p.name, n + 1);
-    if (n > 0) p.name = `${p.name} #${n}`;
+  // ============================ 2. 清理悬空 dialer-proxy ============================
+  // dialer-proxy 指向不存在的节点时，内核会报错或该节点直接连不上。
+  // 判据：引用名必须真实存在，且不能是上面被过滤掉的节点。
+  // 每轮把被剔除的名字并入 removedNames，实现级联清理（P→Q→GHOST 会整条清掉）。
+  let alive = proxies;
+  {
+    let changed = true;
+    while (changed) {
+      const names = new Set(alive.map(p => p.name));
+      const next = alive.filter(p => {
+        const dp = p["dialer-proxy"];
+        return !dp || (names.has(dp) && !removedNames.has(dp));
+      });
+      changed = next.length !== alive.length;
+      if (changed) {
+        const keep = new Set(next);
+        alive.forEach(p => { if (!keep.has(p)) removedNames.add(p.name); });
+      }
+      alive = next;
+    }
   }
 
-  // ============================ 2. 名称归一化 ============================
+  // ============================ 3. 名称归一化 ============================
+  // 同名节点改名去重（scripts19 的方案，实测连续多次运行幂等，不会累加后缀）。
+  // 改名后必须同步别的节点指向它的 dialer-proxy，否则引用会指向旧名字。
+  const seen = new Map();
+  const renameMap = new Map();
+  for (const p of alive) {
+    const base = p.name;
+    if (seen.has(base)) {
+      const n = seen.get(base) + 1;
+      seen.set(base, n);
+      p.name = `${base} #${n}`;
+      if (!renameMap.has(base)) renameMap.set(base, p.name);
+    } else {
+      seen.set(base, 0);
+    }
+  }
+  if (renameMap.size) {
+    alive.forEach(p => {
+      const dp = p["dialer-proxy"];
+      if (dp && renameMap.has(dp)) p["dialer-proxy"] = renameMap.get(dp);
+    });
+  }
+
   const norm = name => {
     let s = String(name).trim().replace(/\s+/g, "").replace(/[【】[\]（）()]/g, "");
     for (const [flag, code] of Object.entries(FLAGS)) s = s.replaceAll(flag, code);
     return s;
   };
 
-  // ============================ 3. 地区探测 ============================
+  // ============================ 4. 地区探测 ============================
   const matched = new Set();
   const regions = REGIONS.map(([name, pattern, icon]) => {
     const re = new RegExp(
@@ -72,12 +114,12 @@ function main(config) {
       }).join("|"),
       "i"
     );
-    const hit = proxies.filter(p => !matched.has(p.name) && re.test(norm(p.name))).map(p => p.name);
+    const hit = alive.filter(p => !matched.has(p.name) && re.test(norm(p.name))).map(p => p.name);
     hit.forEach(n => matched.add(n));
     return hit.length ? { name, icon, proxies: hit } : null;
   }).filter(Boolean);
 
-  const otherProxies = proxies.map(p => p.name).filter(n => !matched.has(n));
+  const otherProxies = alive.map(p => p.name).filter(n => !matched.has(n));
   const hasOther = otherProxies.length > 0;
   const regionNames = regions.map(r => r.name);
 
@@ -101,7 +143,7 @@ function main(config) {
   const validTargets = new Set([
     "DIRECT", "REJECT", "REJECT-DROP", "PASS",
     ...config["proxy-groups"].map(g => g.name),
-    ...proxies.map(p => p.name),
+    ...alive.map(p => p.name),
   ]);
 
   const mapTarget = t => {
@@ -135,8 +177,10 @@ function main(config) {
 
   config.rules = rules;
 
-  // 保留原始节点数组（本脚本不删除节点，只改名）
-  config.proxies = allProxies;
+  // 把清理后的节点写回配置：被黑名单过滤掉的节点、以及因 dialer-proxy 悬空被连带剔除的
+  // 节点都从 config.proxies 里移除，避免配置里残留"存在但不可用"的节点，
+  // 也避免出现指向已移除节点的 dialer-proxy。节点名仍保留 #N 改名结果。
+  config.proxies = alive;
 
   return config;
 }

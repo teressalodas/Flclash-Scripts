@@ -1,4 +1,4 @@
-﻿import fs from 'node:fs';
+import fs from 'node:fs';
 import vm from 'node:vm';
 
 import { fileURLToPath } from 'node:url';
@@ -134,6 +134,52 @@ console.log('\n=========== TEST 3: no valid proxies -> throws ===========');
   let threw = null;
   try { main(cfg); } catch (e) { threw = e.message; }
   t('throws on empty proxy list', !!threw, String(threw));
+}
+
+console.log('\n=========== TEST 4: 悬空 dialer-proxy 清理 + 改名同步 ===========');
+{
+  const main = loadMain({});
+  const cfg = {
+    proxies: [
+      { name: 'HK 1', type: 'ss' },
+      { name: '剩余流量 1GB', type: 'ss' },                          // 会被黑名单过滤
+      { name: 'C', type: 'ss', 'dialer-proxy': '剩余流量 1GB' },      // 指向被过滤掉的节点
+      { name: 'B', type: 'ss', 'dialer-proxy': 'GHOST' },            // 指向不存在的名字
+      { name: 'P', type: 'ss', 'dialer-proxy': 'Q' },                // 级联链
+      { name: 'Q', type: 'ss', 'dialer-proxy': '也不存在' },
+      { name: 'R', type: 'ss', 'dialer-proxy': 'P' },
+    ],
+    'proxy-groups': [], 'rule-providers': {}, rules: [],
+  };
+  const out = main(cfg);
+  const names = out.proxies.map(p => p.name);
+  console.log('  保留:', JSON.stringify(names));
+  t('C(指向被过滤节点)被剔除', !names.includes('C'));
+  t('B(指向不存在的名字)被剔除', !names.includes('B'));
+  t('级联：Q 被剔除', !names.includes('Q'));
+  t('级联：P 被连带剔除', !names.includes('P'));
+  t('级联：R 被连带剔除', !names.includes('R'));
+  t('不相关节点保留', names.includes('HK 1'));
+  const dangling = out.proxies.filter(p => p['dialer-proxy'] && !names.includes(p['dialer-proxy']));
+  t('结果中不含任何悬空引用', dangling.length === 0, JSON.stringify(dangling.map(p => p.name)));
+
+  console.log('\n--- 改名后 dialer-proxy 同步 ---');
+  const main2 = loadMain({});
+  const out2 = main2({
+    proxies: [
+      { name: 'HK 1', type: 'ss' },
+      { name: 'HK 1', type: 'ss' },                       // 重名 -> 改成 "HK 1 #1"
+      { name: 'D', type: 'ss', 'dialer-proxy': 'HK 1' },  // 引用的是被改名走的那一个
+    ],
+    'proxy-groups': [], 'rule-providers': {}, rules: [],
+  });
+  const n2 = out2.proxies.map(p => p.name);
+  const d = out2.proxies.find(p => p.name === 'D');
+  console.log('  保留:', JSON.stringify(n2), ' D.dialer-proxy =', JSON.stringify(d && d['dialer-proxy']));
+  t('重名节点被改名', n2.includes('HK 1 #1'));
+  t('指向被改名节点的 dialer-proxy 已同步', d && d['dialer-proxy'] === 'HK 1 #1', d && d['dialer-proxy']);
+  const dangling2 = out2.proxies.filter(p => p['dialer-proxy'] && !n2.includes(p['dialer-proxy']));
+  t('同步后无悬空引用', dangling2.length === 0, JSON.stringify(dangling2.map(p => p.name)));
 }
 
 console.log(`\n================ ${pass} passed, ${fail} failed ================`);
