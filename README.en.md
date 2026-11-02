@@ -27,19 +27,19 @@ The script rebuilds the whole `proxy-groups`; back up your subscription config b
 | File | Purpose |
 | ---- | ---- |
 | `scripts-lite.js` | Minimal (recommended): only cleans nodes and fixes config errors; injects no routing rules |
-| `scripts-personal.js` | Personal: what the author uses daily; additionally bundles routing rules and takes over DNS and other system fields; not part of public releases |
+| `scripts-personal.js` | Personal: for the author's own use; additionally bundles routing rules and takes over DNS and other system fields; not part of public releases |
 | `tools/` | Maintainer tools: behavior assertion tests |
 
 ## Features
 
-`scripts-lite.js` does four things:
+`scripts-lite.js` provides the following capabilities:
 
-- **Node cleaning**: removes nodes whose names contain ad words like "buy", "rebate", "official"; renames duplicates instead of dropping them.
-- **Node grouping**: auto-groups nodes into US / Japan / Singapore / Hong Kong / Taiwan / Others by region, with optional auto speed-test.
-- **Config fixing**: drops rules that reference rule sets not declared by the subscription (they would fail the whole config); throws instead of emitting an empty config when no valid node exists.
-- **No rule injection**: injects no routing rules; the subscription's own rules stay untouched.
+- **Node cleaning**: filters out nodes whose names contain advertising or marketing keywords; renames duplicates instead of dropping them.
+- **Region grouping**: groups nodes into US / Japan / Singapore / Hong Kong / Taiwan / Others by region, with optional auto speed-test that selects the lowest-latency node.
+- **Config fixing**: drops rules referencing rule sets the subscription does not declare, preventing the whole config from failing to load; throws instead of emitting an empty config when no valid node exists.
+- **Rule neutrality**: injects no routing rules; the subscription's own rules are preserved and remain effective.
 
-`scripts-personal.js` does all of the above, plus bundles its own routing rules and takes over `dns` / `hosts` / `ntp` / `sniffer` — a personal setup; use at your own discretion.
+Beyond the above, `scripts-personal.js` additionally bundles its own routing rules and takes over system fields such as `dns` / `hosts` / `ntp` / `sniffer`. This version is for the author's personal use, does not follow public releases, and should be adopted at your own discretion.
 
 ## Privacy
 
