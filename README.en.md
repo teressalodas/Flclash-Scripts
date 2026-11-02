@@ -45,11 +45,8 @@ Back up your current subscription config before first use — the script rebuild
 
 ## About
 
-- Old scripts1~20 and the removed full / core tiers are retrievable from Git history.
 - Scripts inject through the client's Overwrite / Script mechanism; FlClash updates may change behavior — watch this repo for updates.
 - This repo is not affiliated with FlClash; rule syntax and fields follow the Clash Meta kernel docs.
-- The script rebuilds the whole `proxy-groups`; back up your subscription config before use.
-- Auto-routing may mis-route; assess before relying on it for critical or compliance-sensitive use. Follow FlClash and your provider's terms. Issues and PRs are welcome; stars appreciated.
 
 ## License
 
