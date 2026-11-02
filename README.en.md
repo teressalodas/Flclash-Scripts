@@ -14,28 +14,32 @@
 
 <p align="center"><a href="./README.md">简体中文</a> | English</p>
 
-Enhancement scripts for FlClash subscriptions. Paste the full script into the client's Overwrite / Script section to auto-organize nodes. Two versions: the minimal one injects no rules and keeps the subscription's own; the personal one takes over more system fields and is not part of public releases.
+Messy node lists, manual per-node grouping, and broken rules that fail the whole config — paste the full script into FlClash's Overwrite / Script section and these get fixed automatically. Two versions: the minimal one injects no rules and keeps the subscription's own; the personal one is what the author uses daily and is not part of public releases.
 
 ## Install
 
 Install FlClash first, then open FlClash → Config → select your subscription → Overwrite / Script, paste the full text of the **[Get the Script](https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-lite.js)** and save. Update the subscription once (or restart the kernel) to apply.
 
-Back up your current subscription config before first use — the script rebuilds the whole `proxy-groups`.
+The script rebuilds the whole `proxy-groups`; back up your subscription config before first use.
 
 ## Files
 
 | File | Purpose |
 | ---- | ---- |
-| `scripts-lite.js` | Minimal: cleans node names, builds region groups, fixes broken group references; injects no rules, the subscription's own rules stay untouched |
-| `scripts-personal.js` | Personal variant based on an early full-featured script; takes over `dns`/`hosts`/`ntp`/`sniffer`/`geodata-loader`; not part of public releases |
+| `scripts-lite.js` | Minimal (recommended): only cleans nodes and fixes config errors; injects no routing rules |
+| `scripts-personal.js` | Personal: what the author uses daily; additionally bundles routing rules and takes over DNS and other system fields; not part of public releases |
 | `tools/` | Maintainer tools: behavior assertion tests |
 
 ## Features
 
-- **Node organizing**: blacklist filtering, flag emoji / name normalization, region grouping (auto speed-test or manual), duplicate-name retention.
-- **Rule boundary**: `scripts-lite.js` injects no rule sets; the subscription's third-party rules stay in effect.
-- **Empty-config guard**: throws instead of emitting an empty config when no valid node exists.
-- **System fields**: `scripts-lite.js` never touches `dns`/`hosts`/`ntp`/`sniffer`/`tun`; `scripts-personal.js` takes over several of them (see Files).
+`scripts-lite.js` does four things:
+
+- **Node cleaning**: removes nodes whose names contain ad words like "buy", "rebate", "official"; renames duplicates instead of dropping them.
+- **Node grouping**: auto-groups nodes into US / Japan / Singapore / Hong Kong / Taiwan / Others by region, with optional auto speed-test.
+- **Config fixing**: drops rules that reference rule sets not declared by the subscription (they would fail the whole config); throws instead of emitting an empty config when no valid node exists.
+- **No rule injection**: injects no routing rules; the subscription's own rules stay untouched.
+
+`scripts-personal.js` does all of the above, plus bundles its own routing rules and takes over `dns` / `hosts` / `ntp` / `sniffer` — a personal setup; use at your own discretion.
 
 ## Privacy
 
