@@ -1,5 +1,5 @@
 ﻿<div align="center">
-  <img src="https://raw.githubusercontent.com/chen08209/FlClash/main/assets_source/images/icon/glyph.svg" width="100" height="100" alt="FlClash Scripts">
+  <img src="./icon.svg" width="100" height="100" alt="FlClash Scripts">
   <h1>FlClash Scripts</h1>
 </div>
 
@@ -14,7 +14,7 @@
 
 <p align="center">简体中文 | <a href="./README.en.md">English</a></p>
 
-订阅节点列表混乱、分组要手动一个个挑、坏规则还会让整个配置加载失败——把这个脚本全文粘贴进 FlClash 的覆写 / 脚本，这些问题自动解决。提供两个版本：极简版不注入任何规则，订阅自带规则原样生效；个人自用版由作者日常使用，不随公开版演进。
+面向 FlClash 的订阅增强脚本，粘贴至客户端覆写 / 脚本入口即可自动完成节点清洗、地区分组与配置修复。提供极简版与个人自用版两个版本：极简版不注入任何分流规则，订阅自带规则原样生效；个人自用版由作者日常使用，不随公开版演进。
 
 ## 安装
 

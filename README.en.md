@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/chen08209/FlClash/main/assets_source/images/icon/glyph.svg" width="100" height="100" alt="FlClash Scripts">
+  <img src="./icon.svg" width="100" height="100" alt="FlClash Scripts">
   <h1>FlClash Scripts</h1>
 </div>
 
@@ -14,7 +14,7 @@
 
 <p align="center"><a href="./README.md">简体中文</a> | English</p>
 
-Messy node lists, manual per-node grouping, and broken rules that fail the whole config — paste the full script into FlClash's Overwrite / Script section and these get fixed automatically. Two versions: the minimal one injects no rules and keeps the subscription's own; the personal one is what the author uses daily and is not part of public releases.
+Subscription enhancement scripts for FlClash. Paste the full script into the client's Overwrite / Script section to auto-clean nodes, group them by region and fix config errors. Two versions are provided: the minimal one injects no routing rules and keeps the subscription's own; the personal one is used daily by the author and is not part of public releases.
 
 ## Install
 
