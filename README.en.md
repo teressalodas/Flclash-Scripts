@@ -29,9 +29,8 @@ Back up your current subscription config before first use — the script rebuild
 | `scripts-full.js` | Full-featured; supports `proxy-providers` dynamic subscriptions; bundles ad-blocking, AI/Telegram groups, GFW and CN fallback rules |
 | `scripts-core.js` | General-purpose; complete features; exposes a `myManualRules` entry |
 | `scripts-lite.js` | Minimal; injects no rules, relies entirely on the subscription's own |
-| `legacy/` | All 20 historical scripts kept as-is for rollback |
-| `docs/仓库梳理报告.md` | Cleanup report: feature comparison, similarity analysis, decisions |
-| `tools/` | Maintainer tools: analysis scripts and behavior assertion tests |
+| `scripts-personal.js` | Personal variant based on an early `scripts-full`; keeps hosts/ntp/geodata-loader takeover; not part of public releases |
+| `tools/` | Maintainer tools: behavior assertion tests |
 
 ## Features
 
@@ -39,7 +38,7 @@ Back up your current subscription config before first use — the script rebuild
 - **Routing rules**: `scripts-full.js` / `scripts-core.js` bundle ad-blocking plus GFW and CN fallback; subscription rules are kept and placed after CN-direct.
 - **Dynamic subscriptions**: `scripts-full.js` fills region groups via `use` + `filter` for `proxy-providers`.
 - **Manual control**: "Manual Select" / "Manual Switch" groups let you pick individual nodes; ratio filtering in `scripts-full.js` only affects auto routing.
-- **Minimal takeover**: never touches `dns` / `hosts` / `ntp` / `sniffer` / `tun`; those stay with FlClash and the subscription.
+- **Behavior boundary**: `scripts-full.js` manages `dns` (fake-ip) and `sniffer`; none of the three public scripts touches `hosts` / `ntp` / `tun` / `geodata-loader` — those stay with FlClash and the subscription.
 
 ## Privacy
 
@@ -49,6 +48,7 @@ Back up your current subscription config before first use — the script rebuild
 
 ## About
 
+- Old scripts1~20 were removed in a cleanup; retrieve historical versions from Git history.
 - Scripts inject through the client's Overwrite / Script mechanism; FlClash updates may change behavior — watch this repo for updates.
 - This repo is not affiliated with FlClash; rule syntax and fields follow the Clash Meta kernel docs.
 - The script rebuilds the whole `proxy-groups`; back up your subscription config before use.

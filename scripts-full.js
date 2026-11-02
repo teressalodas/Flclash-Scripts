@@ -1,3 +1,13 @@
+/**
+ * FLClash 覆写脚本 —— 全功能档 scripts-full
+ *
+ * 定位：功能最全，专为动态订阅优化。
+ *   - 支持 `proxy-providers`：地区组挂 `use` + `filter` 动态填充
+ *   - 自带去广告 + AI/Telegram 专组 + GFW + CN 兜底规则
+ *   - 接管 dns（fake-ip）与 sniffer；不碰 hosts / ntp / tun / geodata-loader
+ *   - 档位开关：remoteDirect / blockQuic / filterHighRate / maxRate /
+ *     lanShareDns / dnsIpv6 / subRulesPosition / aiBlockedRegions
+ */
 function main(config) {
 
   const OPTIONS = {
