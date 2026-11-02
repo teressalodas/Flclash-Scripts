@@ -1,10 +1,9 @@
 /**
  * FLClash 覆写脚本 —— 个人自用版（scripts-personal）
  *
- * 基于 scripts-full 早期版本修改的个人自用脚本，与公开三档（full/core/lite）不同：
+ * 基于旧版全功能脚本修改的个人自用脚本，与公开版（scripts-lite）不同：
  *   - 接管 dns（fake-ip）/ hosts / ntp / sniffer / geodata-loader
- *     （公开版 full 只接管 dns + sniffer，不碰 hosts/ntp/geodata-loader）
- *   - 无 AI/Telegram 专组（公开版 full 有）
+ *   - 自带 mrs 规则集与分流规则（lite 不注入任何规则）
  *   - 档位开关：remoteDirect / blockQuic / filterHighRate / maxRate
  *
  * 维护状态：个人维护，不随公开版演进。
