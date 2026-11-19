@@ -1,24 +1,35 @@
-﻿<div align="center">
+<div align="center">
   <img src="./icon.svg" width="100" height="100" alt="FlClash Scripts">
   <h1>FlClash Scripts</h1>
 </div>
 
-<p align="center">
-  <a href="https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-lite.js">
-    <img src="https://img.shields.io/badge/GitHub-%E8%8E%B7%E5%8F%96%E8%84%9A%E6%9C%AC-red?style=for-the-badge&logo=github" alt="获取脚本" />
-  </a>
-  <a href="./LICENSE">
-    <img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg?style=for-the-badge" alt="License: Apache License 2.0" />
-  </a>
-</p>
-
 <p align="center">简体中文 | <a href="./README.en.md">English</a></p>
 
-面向 FlClash 的订阅增强脚本，粘贴至客户端覆写 / 脚本入口即可自动完成节点清洗、地区分组与配置修复。提供极简版与个人自用版两个版本：极简版不注入任何分流规则，订阅自带规则原样生效；个人自用版额外内置分流规则并接管系统字段。两版共享同一套核心逻辑，改动同步演进。
+面向 FlClash 的订阅增强脚本，配置至客户端扩展入口即可自动完成节点清洗、地区分组与配置修复。提供极简版与个人自用版两个版本：极简版不注入任何分流规则，订阅自带规则原样生效；个人自用版额外内置分流规则并接管系统字段。两版共享同一套核心逻辑，改动同步演进。
 
 ## 安装
 
-装好 FlClash 后：打开 FlClash → `配置` → 选中你的订阅 → `覆写` / `脚本`，把 **[获取脚本](https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-lite.js)** 的全文粘贴进去保存，再更新一次订阅（或重启内核）即可生效。
+装好 FlClash 后，打开 FlClash → `配置` → 选中你的订阅 → `扩展`（旧版本为 `覆写` / `脚本`）。
+
+### 方式一：通过 URL 导入（推荐，方便后续更新）
+
+复制下方任意一个脚本链接填入并保存，再更新一次订阅（或重启内核）即可生效。
+
+**极简版（公开推荐）：**
+
+```text
+https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-lite.js
+```
+
+**个人自用版：**
+
+```text
+https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-personal.js
+```
+
+### 方式二：手动粘贴
+
+打开 **[极简版脚本](https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-lite.js)** 或 **[个人自用版脚本](https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-personal.js)**，将全文粘贴进去保存（适合需要自行调整顶部 `options` 开关的场景）。
 
 脚本会重建整个 `proxy-groups`，首次使用前先备份订阅配置。
 
@@ -34,8 +45,8 @@
 
 `scripts-lite.js` 提供以下能力：
 
-- **节点清洗**：剔除名称含广告、营销等关键词的节点；同名节点自动去重并保留，不产生丢失。
-- **地区分组**：按地区将节点划分为 美国 / 日本 / 新加坡 / 香港 / 台湾 / 其他，可启用自动测速选取延迟最低节点。
+- **节点清洗**：剔除名称含广告、营销等关键词的节点（可选过滤高倍率节点）；同名节点自动去重并保留，不产生丢失。
+- **地区分组**：按地区将节点划分为 美国 / 日本 / 新加坡 / 香港 / 台湾 / 其他，并保留「全部节点」组；默认定时测速、手动选择，也可开启自动选择延迟最低节点。
 - **配置修复**：剔除引用未声明规则集的失效规则，避免整个配置加载失败；无有效节点时直接报错，不生成空配置。
 - **规则中立**：不注入任何分流规则，订阅自带的规则原样保留并生效。
 
@@ -49,7 +60,7 @@
 
 ## 关于
 
-- 脚本通过客户端的覆写 / 脚本机制注入，FlClash 更新可能导致行为变化，请关注仓库更新。
+- 脚本通过客户端的扩展 / 覆写机制注入，FlClash 更新可能导致行为变化，请关注仓库更新。
 - 本仓库与 FlClash 官方无关，规则语法与字段以 Clash Meta 内核文档为准。
 
 ## 许可证
