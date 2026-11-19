@@ -1,173 +1,300 @@
 function main(config) {
-  // ============================ 档位开关 ============================
-  const CONFIG = {
-    // 地区分组是否启用自动测速。
-    // false = select（纯手动，等同 scripts16~19 的实际行为）
-    // true  = url-test（自动选延迟最低，即 README 承诺但历史脚本未实现的能力）
+  const options = {
+    filterKeywords: true,
+    filterHighRate: false,
+    maxRate: 1.5,
     autoTest: false,
-    // 空配置防护：一个有效节点都没有时直接抛错，避免内核崩溃（scripts15 起的防护）
-    throwWhenEmpty: true,
   };
 
-  const ICON = "https://cdn.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/";
+  const blacklistRe = /群|邀请|返利|官网|官方(?:网|群|通知|公告)|网址|订阅|购买|续费|到期|过期|邮箱|客服|工单|倒卖|失联|梯子|发布页|备用|重置|剩余|延迟\s*[≠=!<>]+\s*速度|(?:^|[^A-Za-z])traffic(?!\S)|(?:^|[^A-Za-z])expire(?!\S)/i;
+  const rateRe = /(?<![A-Za-z])[xX✕✖⨉×]\s*(\d+(?:\.\d+)?)|(?<![\dA-Za-z.])(\d+(?:\.\d+)?)\s*[xX✕✖⨉×倍](?![A-Za-z\d])|倍率[:：\s]*(\d+(?:\.\d+)?)/;
 
-  const BLACK_RE = /(?<!集)群|邀请|返利|官方|官网|网址|订阅|购买|续费|剩余|到期|过期|流量|备用|邮箱|客服|联系|工单|倒卖|防止|梯子|tg|发布|重置/i;
-  const FLAGS = { "🇺🇸": "US", "🇯🇵": "JP", "🇸🇬": "SG", "🇭🇰": "HK", "🇹🇼": "TW" };
+  const toCaseInsensitive = (regex) => `(?i)(?:${regex.source})`;
+  const getRate = (name) => {
+    const match = rateRe.exec(name);
+    return match ? parseFloat(match[1] ?? match[2] ?? match[3]) : 1;
+  };
 
-  const REGIONS = [
-    ["美国节点", "美国|美|US|USA|UnitedStates|United States|纽约|NewYork|NYC|JFK|洛杉矶|LosAngeles|LAX|旧金山|SanFrancisco|SFO|圣何塞|SanJose|SJC|西雅图|Seattle|SEA|芝加哥|Chicago|ORD|达拉斯|Dallas|DFW|硅谷|SiliconValley", "United_States.png"],
-    ["日本节点", "日本|日|JP|JPN|Japan|东京|Tokyo|TYO|NRT|HND|大阪|Osaka|KIX", "Japan.png"],
-    ["狮城节点", "新加坡|狮城|SG|SGP|Singapore|SIN", "Singapore.png"],
-    ["香港节点", "香港|港|HK|HKG|HongKong|Hong Kong", "Hong_Kong.png"],
-    ["台湾节点", "台湾|台|TW|TWN|Taiwan|台北|Taipei|TPE|新北|NewTaipei", "Taiwan.png"],
-  ];
+  const providerNames = Object.keys(config['proxy-providers'] || {});
+  const hasProviders = providerNames.length > 0;
 
-  // ============================ 1. 节点清洗 ============================
-  const allProxies = config.proxies || [];
-  // 记录被过滤掉的内联节点名，供下面清理悬空的 dialer-proxy 引用
+  const rawProxies = (Array.isArray(config.proxies) ? config.proxies : [])
+    .filter((proxy) => proxy && typeof proxy === 'object' && proxy.name !== undefined && proxy.name !== null)
+    .map((proxy) => {
+      if (typeof proxy.name !== 'string') proxy.name = String(proxy.name);
+      proxy.name = proxy.name.trim();
+      return proxy;
+    })
+    .filter((proxy) => proxy.name);
+
+  if (!rawProxies.length && !hasProviders) {
+    throw new Error('无有效代理节点,请检查订阅配置(订阅本身没有节点)');
+  }
+
   const removedNames = new Set();
-  const proxies = allProxies.filter(p => {
-    if (!p?.name) return false;
-    if (BLACK_RE.test(p.name)) { removedNames.add(p.name); return false; }
+  let proxies = rawProxies.filter((proxy) => {
+    if (options.filterKeywords && blacklistRe.test(proxy.name)) {
+      removedNames.add(proxy.name);
+      return false;
+    }
     return true;
   });
 
-  // scripts17 在无节点时静默返回、scripts19 在"过滤后为空但原始非空"时继续使用空列表，
-  // 两者都会生成没有节点的配置。这里统一改为显式报错。
-  if (!proxies.length && CONFIG.throwWhenEmpty) {
-    throw new Error("无有效代理节点：请检查订阅或节点名过滤规则");
-  }
-  if (!proxies.length) return config;
+  const highRateSet = new Set();
+  proxies.forEach((proxy) => {
+    if (options.filterHighRate && getRate(proxy.name) > options.maxRate) {
+      highRateSet.add(proxy);
+    }
+  });
 
-  // ============================ 2. 清理悬空 dialer-proxy ============================
-  // dialer-proxy 指向不存在的节点时，内核会报错或该节点直接连不上。
-  // 判据：引用名必须真实存在，且不能是上面被过滤掉的节点。
-  // 每轮把被剔除的名字并入 removedNames，实现级联清理（P→Q→GHOST 会整条清掉）。
-  let alive = proxies;
   {
     let changed = true;
     while (changed) {
-      const names = new Set(alive.map(p => p.name));
-      const next = alive.filter(p => {
-        const dp = p["dialer-proxy"];
-        return !dp || (names.has(dp) && !removedNames.has(dp));
+      const names = new Set(proxies.map((proxy) => proxy.name));
+      const nextProxies = proxies.filter((proxy) => {
+        const dialerProxy = proxy['dialer-proxy'];
+        if (!dialerProxy) return true;
+        return hasProviders ? !removedNames.has(dialerProxy) : names.has(dialerProxy);
       });
-      changed = next.length !== alive.length;
+      changed = nextProxies.length !== proxies.length;
       if (changed) {
-        const keep = new Set(next);
-        alive.forEach(p => { if (!keep.has(p)) removedNames.add(p.name); });
+        const keptNext = new Set(nextProxies);
+        proxies.forEach((proxy) => {
+          if (!keptNext.has(proxy)) removedNames.add(proxy.name);
+        });
       }
-      alive = next;
+      proxies = nextProxies;
     }
   }
 
-  // ============================ 3. 名称归一化 ============================
-  // 同名节点改名去重（scripts19 的方案，实测连续多次运行幂等，不会累加后缀）。
-  // 改名后必须同步别的节点指向它的 dialer-proxy，否则引用会指向旧名字。
-  const seen = new Map();
-  const renameMap = new Map();
-  for (const p of alive) {
-    const base = p.name;
-    if (seen.has(base)) {
-      const n = seen.get(base) + 1;
-      seen.set(base, n);
-      p.name = `${base} #${n}`;
-      if (!renameMap.has(base)) renameMap.set(base, p.name);
-    } else {
-      seen.set(base, 0);
-    }
-  }
-  if (renameMap.size) {
-    alive.forEach(p => {
-      const dp = p["dialer-proxy"];
-      if (dp && renameMap.has(dp)) p["dialer-proxy"] = renameMap.get(dp);
-    });
-  }
+  const keptSet = new Set(proxies);
 
-  const norm = name => {
-    let s = String(name).trim().replace(/\s+/g, "").replace(/[【】[\]（）()]/g, "");
-    for (const [flag, code] of Object.entries(FLAGS)) s = s.replaceAll(flag, code);
-    return s;
-  };
+  const buildRegionRe = (cn, en, codes, flags) =>
+    new RegExp(`${cn}|${en}|(?<![A-Za-z])(?:${codes})(?![A-Za-z])${flags ? `|${flags}` : ''}`, 'i');
 
-  // ============================ 4. 地区探测 ============================
-  const matched = new Set();
-  const regions = REGIONS.map(([name, pattern, icon]) => {
-    const re = new RegExp(
-      pattern.split("|").map(k => {
-        const e = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-        // 短纯字母码加词边界：US 不该命中 RUSSIA，SG 不该命中 MSG，JP 不该命中 JPEG
-        return /^[A-Za-z]+$/.test(e) && e.length <= 3 ? `\\b${e}\\b` : e;
-      }).join("|"),
-      "i"
-    );
-    const hit = alive.filter(p => !matched.has(p.name) && re.test(norm(p.name))).map(p => p.name);
-    hit.forEach(n => matched.add(n));
-    return hit.length ? { name, icon, proxies: hit } : null;
-  }).filter(Boolean);
-
-  const otherProxies = alive.map(p => p.name).filter(n => !matched.has(n));
-  const hasOther = otherProxies.length > 0;
-  const regionNames = regions.map(r => r.name);
-
-  // ============================ 4. 组装策略组 ============================
-  const groupType = CONFIG.autoTest ? "url-test" : "select";
-  const tuning = CONFIG.autoTest ? { interval: 300, tolerance: 50 } : {};
-
-  config["proxy-groups"] = [
-    { name: "节点选择", icon: `${ICON}Proxy.png`, type: "select", proxies: [...regionNames, ...(hasOther ? ["其他节点"] : [])] },
-    ...regions.map(r => ({ name: r.name, icon: `${ICON}${r.icon}`, type: groupType, proxies: r.proxies, ...tuning })),
-    ...(hasOther ? [{ name: "其他节点", icon: `${ICON}Available.png`, type: groupType, proxies: otherProxies, ...tuning }] : []),
-    { name: "GLOBAL", icon: `${ICON}Global.png`, type: "select", proxies: ["节点选择", ...regionNames, ...(hasOther ? ["其他节点"] : [])] },
+  const regionConfigs = [
+    [
+      '美国节点',
+      buildRegionRe(
+        '美国|美西|美东|纽约|洛杉矶|旧金山|圣何塞|硅谷|西雅图|芝加哥|达拉斯',
+        'United[\\s_-]*States|(?<!Latin[\\s_-])(?<!South[\\s_-])(?<!Central[\\s_-])America|New[\\s_-]*York|Los[\\s_-]*Angeles|San[\\s_-]*Francisco|San[\\s_-]*Jose|Silicon[\\s_-]*Valley|Seattle|Chicago|Dallas',
+        'US|USA|LAX|SFO|SJC|ORD|DFW',
+        '🇺🇸'
+      ),
+      'United_States.png',
+    ],
+    ['日本节点', buildRegionRe('日本|东京|大阪|埼玉', 'Japan|Tokyo|Osaka|Saitama', 'JP|JPN|TYO|NRT|KIX', '🇯🇵'), 'Japan.png'],
+    ['狮城节点', buildRegionRe('新加坡|狮城', 'Singapore', 'SG|SGP|SIN', '🇸🇬'), 'Singapore.png'],
+    ['香港节点', buildRegionRe('香港', 'Hong[\\s_-]*Kong', 'HK|HKG', '🇭🇰'), 'Hong_Kong.png'],
+    ['台湾节点', buildRegionRe('台湾|台北|新北|彰化|台中|高雄', 'Taiwan|Taipei', 'TW|TWN|TPE', '🇹🇼'), 'Taiwan.png'],
   ];
 
-  // ============================ 5. 规则防护（不注入任何自带规则） ============================
-  // 关键点：绝不动 config["rule-providers"]，订阅自带的规则集原样保留。
-  // 同时丢弃引用了不存在 provider 的 RULE-SET 规则 —— scripts17~19 缺这一步，
-  // 订阅里若有失效引用就会整份配置加载失败。
-  const providerKeys = new Set(Object.keys(config["rule-providers"] || {}));
-
-  const validTargets = new Set([
-    "DIRECT", "REJECT", "REJECT-DROP", "PASS",
-    ...config["proxy-groups"].map(g => g.name),
-    ...alive.map(p => p.name),
+  const allNodesName = '全部节点';
+  const builtinNames = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE', 'GLOBAL']);
+  const reservedNames = new Set([
+    ...builtinNames,
+    '节点选择',
+    '其他节点',
+    allNodesName,
+    '手动选择',
+    '手动切换',
+    '自动选择',
+    ...regionConfigs.map((region) => region[0]),
   ]);
+  const usedNames = new Set(reservedNames);
 
-  const mapTarget = t => {
-    const v = String(t).trim();
-    if (/直连|DIRECT|LAN|局域网/i.test(v)) return "DIRECT";
-    if (/拦截|广告|净化|REJECT|DROP|PASS/i.test(v)) return "REJECT";
-    return "节点选择";
+  const renameMap = new Map();
+  const allProxies = rawProxies.map((proxy) => {
+    const baseName = proxy.name;
+    let name = baseName;
+    let suffix = 0;
+    while (usedNames.has(name)) name = `${baseName} #${++suffix}`;
+    usedNames.add(name);
+    if (name !== baseName && reservedNames.has(baseName) && !builtinNames.has(baseName) && !renameMap.has(baseName)) {
+      renameMap.set(baseName, name);
+    }
+    proxy.name = name;
+    return proxy;
+  });
+
+  allProxies.forEach((proxy) => {
+    const dialerProxy = proxy['dialer-proxy'];
+    if (dialerProxy && renameMap.has(dialerProxy)) {
+      proxy['dialer-proxy'] = renameMap.get(dialerProxy);
+    }
+  });
+
+  const processedProxies = allProxies.filter((proxy) => keptSet.has(proxy));
+
+  const matchedNames = new Set();
+  const regions = regionConfigs
+    .map(([name, regex, icon]) => {
+      const matched = processedProxies
+        .filter((proxy) => !highRateSet.has(proxy) && !matchedNames.has(proxy.name) && regex.test(proxy.name))
+        .map((proxy) => proxy.name);
+      matched.forEach((proxyName) => matchedNames.add(proxyName));
+      return matched.length || hasProviders ? { name, icon, regex, proxies: matched } : null;
+    })
+    .filter(Boolean);
+
+  const otherProxies = processedProxies
+    .filter((proxy) => !highRateSet.has(proxy) && !matchedNames.has(proxy.name))
+    .map((proxy) => proxy.name);
+  const otherGroupNames = otherProxies.length || hasProviders ? ['其他节点'] : [];
+  const regionNames = regions.map((region) => region.name);
+
+  const iconBaseUrl = 'https://fastly.jsdelivr.net/gh/Koolson/Qure@master/IconSet/Color/';
+  const regionExcludeParts = regionConfigs.map((region) => `(?:${region[1].source})`).join('|');
+  const otherExcludeFilter = options.filterKeywords
+    ? `${toCaseInsensitive(blacklistRe)}|${regionExcludeParts}`
+    : `(?i)(?:${regionExcludeParts})`;
+
+  const healthCheckConfig = {
+    url: 'https://www.gstatic.com/generate_204',
+    interval: 300,
+    lazy: true,
   };
 
-  const rules = (config.rules || []).map(r => {
-    let t = String(r).trim();
-    if (/^(AND|OR|NOT|SUB-RULE),/i.test(t)) return t;
+  const regionGroupConfig = options.autoTest
+    ? {
+        type: 'url-test',
+        ...healthCheckConfig,
+        tolerance: 50,
+      }
+    : {
+        type: 'select',
+        ...healthCheckConfig,
+      };
 
-    const parts = t.split(",");
-    const head = parts[0].trim().toUpperCase();
+  const allNodesGroup = {
+    name: allNodesName,
+    icon: `${iconBaseUrl}Available.png`,
+    type: 'select',
+    'include-all': true,
+  };
 
-    // MATCH 是兜底规则，必须排在最后；这里先剔除，统一在末尾重建，
-    // 否则订阅里 MATCH 之后的自定义规则会被它吞掉、永远不会被匹配。
-    if (head === "MATCH") return null;
+  config['proxy-groups'] = [
+    {
+      name: '节点选择',
+      icon: `${iconBaseUrl}Proxy.png`,
+      type: 'select',
+      proxies: [...regionNames, ...otherGroupNames, allNodesName],
+    },
+    ...regions.map((group) => ({
+      name: group.name,
+      icon: `${iconBaseUrl}${group.icon}`,
+      ...regionGroupConfig,
+      ...(group.proxies.length ? { proxies: group.proxies } : {}),
+      ...(hasProviders
+        ? {
+            use: providerNames,
+            filter: toCaseInsensitive(group.regex),
+            ...(options.filterKeywords ? { 'exclude-filter': toCaseInsensitive(blacklistRe) } : {}),
+          }
+        : {}),
+    })),
+    ...(otherGroupNames.length
+      ? [
+          {
+            name: '其他节点',
+            icon: `${iconBaseUrl}Final.png`,
+            ...regionGroupConfig,
+            ...(otherProxies.length ? { proxies: otherProxies } : {}),
+            ...(hasProviders ? { use: providerNames, 'exclude-filter': otherExcludeFilter } : {}),
+          },
+        ]
+      : []),
+    allNodesGroup,
+    {
+      name: 'GLOBAL',
+      icon: `${iconBaseUrl}Global.png`,
+      type: 'select',
+      hidden: true,
+      proxies: ['节点选择', ...regionNames, ...otherGroupNames, allNodesName],
+    },
+  ];
 
-    // 引用未知规则集的规则直接丢弃
-    if (head === "RULE-SET" && !providerKeys.has(parts[1]?.trim())) return null;
+  const declaredProviders = new Set(Object.keys(config['rule-providers'] || {}));
+  const hasUndeclaredProvider = (rule) => {
+    for (const match of rule.matchAll(/RULE-SET\s*,\s*([^,()\s]+)/gi)) {
+      if (!declaredProviders.has(match[1])) return true;
+    }
+    return false;
+  };
 
-    if (parts.length >= 3 && !validTargets.has(parts[2].trim())) parts[2] = mapTarget(parts[2]);
-    if (/^(GEOIP|IP-CIDR|IP-CIDR6|SRC-IP-CIDR|IP-SUFFIX)/i.test(head) && !parts.includes("no-resolve")) parts.push("no-resolve");
-    return parts.join(",");
-  }).filter(Boolean);
+  const validTargets = new Set([
+    ...builtinNames,
+    ...config['proxy-groups'].map((group) => group.name),
+    ...allProxies.map((proxy) => proxy.name),
+  ]);
 
-  // 兜底规则始终放在最后一条
-  rules.push("MATCH,节点选择");
+  const knownSubRules = new Set(Object.keys(config['sub-rules'] || {}));
+  const rejectRe = /拦截|广告|屏蔽|净化|追踪|reject|adblock|\bads?\b/i;
+  const directRe = /直连|国内|局域网|本地|domestic|direct|lan\b/i;
+  const ruleFlags = new Set(['no-resolve', 'src']);
 
-  config.rules = rules;
+  const mapTarget = (target) => {
+    const trimmedTarget = String(target).trim();
+    if (validTargets.has(trimmedTarget)) return trimmedTarget;
+    if (rejectRe.test(trimmedTarget)) return 'REJECT';
+    if (directRe.test(trimmedTarget)) return 'DIRECT';
+    return '节点选择';
+  };
 
-  // 把清理后的节点写回配置：被黑名单过滤掉的节点、以及因 dialer-proxy 悬空被连带剔除的
-  // 节点都从 config.proxies 里移除，避免配置里残留"存在但不可用"的节点，
-  // 也避免出现指向已移除节点的 dialer-proxy。节点名仍保留 #N 改名结果。
-  config.proxies = alive;
+  const remapRule = (rule) => {
+    if (typeof rule !== 'string') return null;
+    const trimmedRule = rule.trim();
+    if (!trimmedRule) return null;
 
+    if (hasUndeclaredProvider(trimmedRule)) return null;
+
+    if (/^(AND|OR|NOT),/i.test(trimmedRule)) {
+      const lastCommaIndex = trimmedRule.lastIndexOf(',');
+      if (lastCommaIndex < 0) return trimmedRule;
+      const target = trimmedRule.slice(lastCommaIndex + 1).trim();
+      if (!target || target.endsWith(')')) return trimmedRule;
+      const mappedTarget = mapTarget(target);
+      return mappedTarget === target ? trimmedRule : `${trimmedRule.slice(0, lastCommaIndex + 1)}${mappedTarget}`;
+    }
+
+    if (/^MATCH,/i.test(trimmedRule)) {
+      const matchParts = trimmedRule.split(',').map((part) => part.trim());
+      if (matchParts.length >= 2) matchParts[1] = mapTarget(matchParts[1]);
+      return matchParts.join(',');
+    }
+
+    if (/^SUB-RULE,/i.test(trimmedRule)) {
+      const match = trimmedRule.match(/^SUB-RULE\s*,\s*\([^)]*\)\s*,\s*([^,]+)/i);
+      if (match && !knownSubRules.has(match[1].trim()) && !validTargets.has(match[1].trim())) return null;
+      return trimmedRule;
+    }
+
+    const parts = trimmedRule.split(',').map((part) => part.trim());
+    if (parts.length < 3) return trimmedRule;
+
+    let targetIndex = parts.length - 1;
+    while (targetIndex > 0 && ruleFlags.has(parts[targetIndex].toLowerCase())) targetIndex--;
+    if (targetIndex < 1) return trimmedRule;
+
+    const mappedTarget = mapTarget(parts[targetIndex]);
+    if (mappedTarget === parts[targetIndex]) return trimmedRule;
+    parts[targetIndex] = mappedTarget;
+    return parts.join(',');
+  };
+
+  if (Array.isArray(config.rules)) {
+    config.rules = config.rules.map(remapRule).filter((rule) => rule !== null);
+  }
+
+  if (config['sub-rules'] && typeof config['sub-rules'] === 'object') {
+    config['sub-rules'] = Object.fromEntries(
+      Object.entries(config['sub-rules']).map(([key, list]) => [
+        key,
+        Array.isArray(list) ? list.map(remapRule).filter((rule) => rule !== null) : list,
+      ])
+    );
+  }
+
+  config.proxies = allProxies;
   return config;
 }
