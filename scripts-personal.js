@@ -1,8 +1,9 @@
 function main(config) {
   const options = {
     filterKeywords: true,
-    filterHighRate: false,
+    filterHighRate: true,
     maxRate: 1.5,
+    autoTest: false,
     remoteDirect: true,
     blockQuic: true,
   };
@@ -150,6 +151,23 @@ function main(config) {
     ? `${toCaseInsensitive(blacklistRe)}|${regionExcludeParts}`
     : `(?i)(?:${regionExcludeParts})`;
 
+  const healthCheckConfig = {
+    url: 'https://www.gstatic.com/generate_204',
+    interval: 300,
+    lazy: true,
+  };
+
+  const regionGroupConfig = options.autoTest
+    ? {
+        type: 'url-test',
+        ...healthCheckConfig,
+        tolerance: 50,
+      }
+    : {
+        type: 'select',
+        ...healthCheckConfig,
+      };
+
   const allNodesGroup = {
     name: allNodesName,
     icon: `${iconBaseUrl}Available.png`,
@@ -167,7 +185,7 @@ function main(config) {
     ...regions.map((group) => ({
       name: group.name,
       icon: `${iconBaseUrl}${group.icon}`,
-      type: 'select',
+      ...regionGroupConfig,
       ...(group.proxies.length ? { proxies: group.proxies } : {}),
       ...(hasProviders
         ? {
@@ -182,7 +200,7 @@ function main(config) {
           {
             name: '其他节点',
             icon: `${iconBaseUrl}Final.png`,
-            type: 'select',
+            ...regionGroupConfig,
             ...(otherProxies.length ? { proxies: otherProxies } : {}),
             ...(hasProviders ? { use: providerNames, 'exclude-filter': otherExcludeFilter } : {}),
           },
