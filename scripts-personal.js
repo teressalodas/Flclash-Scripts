@@ -262,7 +262,6 @@ function main(config) {
   config.hosts = {
     ...(config.hosts || {}),
     'services.googleapis.cn': 'services.googleapis.com',
-    'service.googleapis.cn': 'service.googleapis.com',
     '+.mcdn.bilivideo.com': '0.0.0.0',
     '+.mcdn.bilivideo.cn': '0.0.0.0',
     '+.edge.mountaintoys.cn': '0.0.0.0',
