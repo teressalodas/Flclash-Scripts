@@ -18,13 +18,13 @@ Copy one of the script URLs below, paste and save, then update the subscription 
 **Minimal (recommended):**
 
 ```text
-[https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-lite.js](https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-lite.js)
+https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-lite.js
 ```
 
 **Personal:**
 
 ```text
-[https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-personal.js](https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-personal.js)
+https://raw.githubusercontent.com/teressalodas/FlClash-Scripts/main/scripts-personal.js
 ```
 
 ### Option 2: Paste manually
