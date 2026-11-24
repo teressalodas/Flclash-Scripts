@@ -1,9 +1,9 @@
 function main(config) {
   const options = {
     filterKeywords: true,
-    filterHighRate: true,
+    filterHighRate: false,
     maxRate: 1.5,
-    autoTest: false,
+    autoSelect: true,
     remoteDirect: true,
     blockQuic: true,
   };
@@ -91,14 +91,14 @@ function main(config) {
     ['台湾节点', buildRegionRe('台湾|台北|新北|彰化|台中|高雄', 'Taiwan|Taipei', 'TW|TWN|TPE', '🇹🇼'), 'Taiwan.png'],
   ];
 
-  const allNodesName = '全部节点';
+  const allNodesName = '手动选择';
   const builtinNames = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE', 'GLOBAL']);
   const reservedNames = new Set([
     ...builtinNames,
     '节点选择',
     '其他节点',
     allNodesName,
-    '手动选择',
+    '全部节点',
     '手动切换',
     '自动选择',
     ...regionConfigs.map((region) => region[0]),
@@ -157,7 +157,7 @@ function main(config) {
     lazy: true,
   };
 
-  const regionGroupConfig = options.autoTest
+  const regionGroupConfig = options.autoSelect
     ? {
         type: 'url-test',
         ...healthCheckConfig,
