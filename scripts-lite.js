@@ -3,7 +3,7 @@ function main(config) {
     filterKeywords: true,
     filterHighRate: false,
     maxRate: 1.5,
-    autoTest: false,
+    autoSelect: true,
   };
 
   const blacklistRe = /群|邀请|返利|官网|官方(?:网|群|通知|公告)|网址|订阅|购买|续费|到期|过期|邮箱|客服|工单|倒卖|失联|梯子|发布页|备用|重置|剩余|延迟\s*[≠=!<>]+\s*速度|(?:^|[^A-Za-z])traffic(?!\S)|(?:^|[^A-Za-z])expire(?!\S)/i;
@@ -89,14 +89,14 @@ function main(config) {
     ['台湾节点', buildRegionRe('台湾|台北|新北|彰化|台中|高雄', 'Taiwan|Taipei', 'TW|TWN|TPE', '🇹🇼'), 'Taiwan.png'],
   ];
 
-  const allNodesName = '全部节点';
+  const allNodesName = '手动选择';
   const builtinNames = new Set(['DIRECT', 'REJECT', 'REJECT-DROP', 'PASS', 'COMPATIBLE', 'GLOBAL']);
   const reservedNames = new Set([
     ...builtinNames,
     '节点选择',
     '其他节点',
     allNodesName,
-    '手动选择',
+    '全部节点',
     '手动切换',
     '自动选择',
     ...regionConfigs.map((region) => region[0]),
@@ -155,7 +155,7 @@ function main(config) {
     lazy: true,
   };
 
-  const regionGroupConfig = options.autoTest
+  const regionGroupConfig = options.autoSelect
     ? {
         type: 'url-test',
         ...healthCheckConfig,
